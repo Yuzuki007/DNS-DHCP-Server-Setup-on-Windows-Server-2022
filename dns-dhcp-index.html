@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DNS & DHCP Server Setup — Windows Server 2022</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #f0f4f8;
+      --bg2:       #e6ecf3;
+      --panel:     #ffffff;
+      --panel2:    #f7fafc;
+      --border:    #d0dae8;
+      --border2:   #bfcfe0;
+      --accent:    #0057b8;
+      --accent2:   #0096c7;
+      --accent3:   #00875a;
+      --warn:      #b45309;
+      --danger:    #c0392b;
+      --text:      #1a2540;
+      --muted:     #5a7192;
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'DM Sans', sans-serif;
+      --shadow:    0 2px 16px rgba(0,60,120,0.08);
+      --shadow-lg: 0 8px 40px rgba(0,60,120,0.13);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow-x: hidden;
+    }
+
+    /* Subtle dot grid background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: radial-gradient(circle, rgba(0,87,184,0.08) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0 8vw;
+      overflow: hidden;
+    }
+
+    /* Decorative blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(80px);
+      opacity: 0.18;
+      pointer-events: none;
+    }
+    .blob-1 { width: 500px; height: 500px; background: #0096c7; top: -100px; right: -100px; }
+    .blob-2 { width: 350px; height: 350px; background: #0057b8; bottom: 60px; left: -80px; }
+
+    .hero-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: inline-block;
+      width: 28px; height: 2px;
+      background: var(--accent2);
+      border-radius: 2px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.4rem, 5.5vw, 4.8rem);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -2px;
+      color: var(--text);
+      margin-bottom: 1.4rem;
+      animation: fadeUp 0.5s ease 0.1s both;
+    }
+
+    .hero h1 em {
+      font-style: normal;
+      color: var(--accent);
+    }
+
+    .hero-desc {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 540px;
+      line-height: 1.75;
+      margin-bottom: 2.2rem;
+      font-weight: 400;
+      animation: fadeUp 0.5s ease 0.2s both;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      animation: fadeUp 0.5s ease 0.3s both;
+    }
+
+    .badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 12px;
+      border-radius: 4px;
+      border: 1.5px solid;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-blue   { color: var(--accent);  border-color: var(--accent);  background: rgba(0,87,184,0.07); }
+    .badge-teal   { color: var(--accent2); border-color: var(--accent2); background: rgba(0,150,199,0.07); }
+    .badge-green  { color: var(--accent3); border-color: var(--accent3); background: rgba(0,135,90,0.07); }
+    .badge-amber  { color: var(--warn);    border-color: var(--warn);    background: rgba(180,83,9,0.07); }
+
+    .scroll-cue {
+      position: absolute;
+      bottom: 2.5rem;
+      left: 8vw;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: fadeUp 0.5s ease 0.5s both;
+    }
+
+    .scroll-cue::after {
+      content: '';
+      width: 36px; height: 1.5px;
+      background: var(--border2);
+      animation: pulse 2.5s ease infinite;
+    }
+
+    /* ── LAYOUT ── */
+    .divider { border: none; border-top: 1.5px solid var(--border); margin: 0 8vw; }
+
+    section {
+      position: relative;
+      z-index: 1;
+      padding: 5.5rem 8vw;
+    }
+
+    .section-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--accent2);
+      margin-bottom: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-eyebrow::before {
+      content: '';
+      width: 16px; height: 2px;
+      background: var(--accent2);
+      border-radius: 2px;
+    }
+
+    .section-title {
+      font-size: clamp(1.7rem, 3vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: -1px;
+      color: var(--text);
+      margin-bottom: 2.8rem;
+    }
+
+    /* ── ENV TABLE ── */
+    .table-wrap {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .env-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+    .env-table tr { border-bottom: 1px solid var(--border); }
+    .env-table tr:last-child { border-bottom: none; }
+    .env-table tr:hover td { background: var(--bg2); }
+    .env-table td { padding: 14px 20px; background: var(--panel); transition: background 0.15s; }
+    .env-table td:first-child { color: var(--muted); width: 220px; border-right: 1px solid var(--border); }
+    .env-table td:last-child { color: var(--accent); font-weight: 500; }
+
+    /* ── CHECKLIST ── */
+    .checklist {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .check-item {
+      background: var(--panel);
+      padding: 1.1rem 1.4rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: background 0.15s;
+    }
+
+    .check-item:hover { background: var(--panel2); }
+
+    .check-icon {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: rgba(0,135,90,0.1);
+      border: 1.5px solid var(--accent3);
+      color: var(--accent3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px;
+      flex-shrink: 0;
+      font-weight: 700;
+    }
+
+    .check-text { font-size: 14px; color: var(--text); }
+
+    /* ── STEPS ── */
+    .steps { display: flex; flex-direction: column; }
+
+    .step { display: grid; grid-template-columns: 72px 1fr; }
+
+    .step-left { display: flex; flex-direction: column; align-items: center; padding-top: 2px; }
+
+    .step-num {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+      z-index: 1;
+    }
+
+    .step-line {
+      width: 2px; flex: 1;
+      background: var(--border);
+      margin: 8px 0;
+      min-height: 30px;
+    }
+
+    .step-content { padding: 0 0 3rem 1.8rem; }
+
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .step-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 1rem;
+    }
+
+    /* ── CODE BLOCK ── */
+    .code-block {
+      background: #1a2540;
+      border: 1.5px solid #253558;
+      border-radius: 8px;
+      overflow: hidden;
+      margin: 1rem 0;
+      box-shadow: var(--shadow);
+    }
+
+    .code-header {
+      background: #1e2d4a;
+      border-bottom: 1px solid #253558;
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-lang { font-family: var(--mono); font-size: 10px; color: #5a7ab0; letter-spacing: 1.5px; text-transform: uppercase; }
+
+    .code-dots { display: flex; gap: 6px; }
+    .code-dots span { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+
+    pre {
+      padding: 1.2rem 1.5rem;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.85;
+      color: #94aabf;
+      overflow-x: auto;
+    }
+
+    pre .kw  { color: #7c9de0; }
+    pre .str { color: #7ecba1; }
+    pre .cm  { color: #445577; font-style: italic; }
+    pre .var { color: #56c2e6; }
+    pre .val { color: #f0a050; }
+    pre .pn  { color: #e06c75; }
+
+    /* ── RESULT BOX ── */
+    .result-box {
+      background: rgba(0,135,90,0.06);
+      border: 1.5px solid rgba(0,135,90,0.25);
+      border-radius: 8px;
+      padding: 1rem 1.4rem;
+      font-family: var(--mono);
+      font-size: 12.5px;
+      color: var(--accent3);
+      line-height: 1.9;
+    }
+
+    .result-label {
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--accent3);
+      margin-bottom: 6px;
+      opacity: 0.7;
+    }
+
+    /* ── CARDS ── */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 1.4rem;
+      box-shadow: var(--shadow);
+      transition: box-shadow 0.2s, border-color 0.2s, transform 0.2s;
+    }
+
+    .card:hover {
+      box-shadow: var(--shadow-lg);
+      border-color: var(--accent2);
+      transform: translateY(-2px);
+    }
+
+    .card-icon { font-size: 1.6rem; margin-bottom: 10px; }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+    .card-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ── DHCP FLOW ── */
+    .dhcp-flow {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 2rem 2.5rem;
+      box-shadow: var(--shadow);
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .flow-node {
+      text-align: center;
+      padding: 1rem 1.5rem;
+      min-width: 130px;
+    }
+
+    .flow-node-num {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 8px;
+    }
+
+    .flow-node-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .flow-node-sub   { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+    .flow-arrow {
+      font-size: 1.2rem;
+      color: var(--border2);
+      padding: 0 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* ── DNS RECORDS TABLE ── */
+    .record-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 13px; }
+    .record-table th {
+      text-align: left;
+      padding: 10px 16px;
+      background: var(--bg2);
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .record-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text); }
+    .record-table tr:last-child td { border-bottom: none; }
+    .record-table tr:hover td { background: var(--panel2); }
+    .rtype { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+    .rtype-a    { background: rgba(0,87,184,0.1); color: var(--accent); }
+    .rtype-c    { background: rgba(0,150,199,0.1); color: var(--accent2); }
+    .rtype-ptr  { background: rgba(0,135,90,0.1); color: var(--accent3); }
+
+    /* ── ISSUES ── */
+    .issues-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
+
+    .issue-card {
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .issue-head {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(192,57,43,0.05);
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .issue-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); flex-shrink: 0; }
+    .issue-title { font-family: var(--mono); font-size: 12px; color: var(--danger); }
+
+    .issue-body { padding: 14px 16px; }
+    .issue-label { font-size: 10px; letter-spacing: 2px; color: var(--muted); margin-bottom: 4px; }
+    .issue-text  { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 10px; }
+    .fix-label   { font-size: 10px; letter-spacing: 2px; color: var(--accent3); margin-bottom: 4px; }
+    .fix-text    { font-size: 13px; color: var(--accent3); line-height: 1.6; }
+
+    /* ── SKILLS ── */
+    .skills-wrap { display: flex; flex-wrap: wrap; gap: 10px; }
+
+    .skill-pill {
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: var(--shadow);
+      transition: border-color 0.2s, transform 0.15s;
+    }
+
+    .skill-pill:hover { border-color: var(--accent2); transform: translateY(-1px); }
+    .skill-pill span  { font-size: 1rem; }
+
+    /* ── ARCH DIAGRAM ── */
+    .arch {
+      background: var(--panel);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 3rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 2.5rem;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+    }
+
+    .arch-node {
+      background: var(--bg);
+      border: 2px solid var(--border2);
+      border-radius: 10px;
+      padding: 1.5rem 2rem;
+      text-align: center;
+      min-width: 190px;
+    }
+
+    .arch-node.dc   { border-color: var(--accent); }
+    .arch-node.dhcp { border-color: var(--accent2); }
+    .arch-node.dns  { border-color: var(--accent3); }
+
+    .arch-icon { font-size: 2rem; margin-bottom: 6px; }
+    .arch-name { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+    .arch-ip   { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+
+    .arch-tags { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+    .arch-tag  { font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 3px; }
+    .arch-tag.b { background: rgba(0,87,184,0.1); color: var(--accent); }
+    .arch-tag.t { background: rgba(0,150,199,0.1); color: var(--accent2); }
+    .arch-tag.g { background: rgba(0,135,90,0.1); color: var(--accent3); }
+
+    .arch-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .arch-line {
+      width: 50px; height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      position: relative; z-index: 1;
+      border-top: 1.5px solid var(--border);
+      padding: 2.5rem 8vw;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      background: var(--panel);
+    }
+
+    .footer-left { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .footer-left strong { color: var(--accent); }
+
+    .footer-links { display: flex; gap: 1.5rem; }
+    .footer-links a {
+      font-family: var(--mono); font-size: 12px;
+      color: var(--muted); text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--accent); }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 1; }
+    }
+
+    .live { display: inline-flex; align-items: center; gap: 6px; }
+    .live::before {
+      content: '';
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--accent3);
+      animation: pulse 2s ease infinite;
+    }
+  </style>
+</head>
+<body>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+
+  <div class="hero-eyebrow">Home Lab Project — Part 01</div>
+  <h1>DNS &amp; DHCP Server<br>Setup on <em>Windows Server 2022</em></h1>
+  <p class="hero-desc">
+    Configuring a fully functional DNS and DHCP server on Windows Server 2022,
+    integrated with Active Directory Domain Services — simulating real enterprise
+    network infrastructure in a VirtualBox home lab.
+  </p>
+  <div class="badge-row">
+    <span class="badge badge-green"><span class="live">Complete</span></span>
+    <span class="badge badge-blue">Windows Server 2022</span>
+    <span class="badge badge-teal">DNS Server</span>
+    <span class="badge badge-teal">DHCP Server</span>
+    <span class="badge badge-amber">Active Directory</span>
+  </div>
+  <div class="scroll-cue">Scroll to explore</div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ENVIRONMENT -->
+<section>
+  <div class="section-eyebrow">Lab Setup</div>
+  <h2 class="section-title">Environment Configuration</h2>
+  <div class="table-wrap">
+    <table class="env-table">
+      <tr><td>Hypervisor</td><td>Oracle VirtualBox</td></tr>
+      <tr><td>Operating System</td><td>Windows Server 2022 (64-bit)</td></tr>
+      <tr><td>Base Memory</td><td>4096 MB</td></tr>
+      <tr><td>Storage</td><td>50 GB (VDI — Normal)</td></tr>
+      <tr><td>Network Adapter</td><td>Bridged — Intel PRO/1000 MT Desktop</td></tr>
+      <tr><td>Server IP Address</td><td>192.168.1.200</td></tr>
+      <tr><td>Subnet Mask</td><td>255.255.255.0</td></tr>
+      <tr><td>Default Gateway</td><td>192.168.1.1</td></tr>
+      <tr><td>Domain</td><td>mylab.local</td></tr>
+    </table>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- OBJECTIVES -->
+<section>
+  <div class="section-eyebrow">Goals</div>
+  <h2 class="section-title">Project Objectives</h2>
+  <div class="checklist">
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Install and verify Active Directory Domain Services</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Install DHCP Server role via PowerShell</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Authorize DHCP Server in Active Directory</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Create and configure a DHCP scope (50–150)</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Set scope options — Gateway, DNS, Domain</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Configure DNS forward lookup zone</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Configure DNS reverse lookup zone</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Add DNS A record and CNAME alias</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Verify DNS name resolution</span></div>
+    <div class="check-item"><div class="check-icon">✓</div><span class="check-text">Export configuration summary to file</span></div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- WHAT IS -->
+<section>
+  <div class="section-eyebrow">Concepts</div>
+  <h2 class="section-title">What Are DNS & DHCP?</h2>
+  <div class="cards-grid">
+    <div class="card">
+      <div class="card-icon">📖</div>
+      <div class="card-title">DNS — The Network Phone Book</div>
+      <div class="card-desc">Translates human-readable names like <code>winserver2022.homelab.local</code> into IP addresses computers use to communicate. Without DNS, you'd need to remember every IP address.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏨</div>
+      <div class="card-title">DHCP — The Automatic IP Assigner</div>
+      <div class="card-desc">Automatically assigns IP addresses, subnet masks, gateways, and DNS servers to devices when they join the network — like a hotel front desk handing out room keys.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🏢</div>
+      <div class="card-title">Real-World Use</div>
+      <div class="card-desc">Every company network uses both. DNS lets employees reach internal apps by name. DHCP ensures laptops, phones, and printers get correct network settings automatically.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔗</div>
+      <div class="card-title">AD Integration</div>
+      <div class="card-desc">In enterprise environments, DNS and DHCP are integrated with Active Directory — allowing dynamic updates, secure zone transfers, and authorized DHCP servers only.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- DHCP FLOW -->
+<section>
+  <div class="section-eyebrow">How It Works</div>
+  <h2 class="section-title">DHCP 4-Step Process (DORA)</h2>
+  <div class="dhcp-flow">
+    <div class="flow-node">
+      <div class="flow-node-num">1</div>
+      <div class="flow-node-title">Discover</div>
+      <div class="flow-node-sub">"Any DHCP server?"</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="flow-node-num">2</div>
+      <div class="flow-node-title">Offer</div>
+      <div class="flow-node-sub">"Here's 192.168.1.55"</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="flow-node-num">3</div>
+      <div class="flow-node-title">Request</div>
+      <div class="flow-node-sub">"I'll take that IP!"</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node">
+      <div class="flow-node-num">4</div>
+      <div class="flow-node-title">Acknowledge</div>
+      <div class="flow-node-sub">"It's yours for 8hrs"</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- STEPS -->
+<section>
+  <div class="section-eyebrow">Walkthrough</div>
+  <h2 class="section-title">Step-by-Step Implementation</h2>
+  <div class="steps">
+
+    <div class="step">
+      <div class="step-left"><div class="step-num">01</div><div class="step-line"></div></div>
+      <div class="step-content">
+        <div class="step-title">Install DHCP Server Role</div>
+        <div class="step-desc">DNS was already installed with AD DS. DHCP was installed separately using PowerShell with management tools included.</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">PowerShell — Admin</span><div class="code-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+          <pre><span class="cm"># Install DHCP Server role with management tools</span>
+<span class="var">Install-WindowsFeature</span> -Name <span class="str">DHCP</span> -IncludeManagementTools</pre>
+        </div>
+        <div class="result-box">
+          <div class="result-label">✓ Result</div>
+          Success: True &nbsp;|&nbsp; Restart Needed: No &nbsp;|&nbsp; Feature: {DHCP Server, DHCP Server Tools}
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-left"><div class="step-num">02</div><div class="step-line"></div></div>
+      <div class="step-content">
+        <div class="step-title">Authorize DHCP & Create Scope</div>
+        <div class="step-desc">Authorized the DHCP server in Active Directory to prevent rogue DHCP servers. Created a scope with IP range 192.168.1.50–150 and set scope options.</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">PowerShell — Admin</span><div class="code-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+          <pre><span class="cm"># Authorize DHCP in Active Directory</span>
+<span class="var">Add-DhcpServerInDC</span> -DnsName <span class="str">"WinServer2022"</span> -IPAddress <span class="val">192.168.1.200</span>
+
+<span class="cm"># Create DHCP scope</span>
+<span class="var">Add-DhcpServerv4Scope</span> -Name <span class="str">"HomeLabScope"</span> `
+  -StartRange <span class="val">192.168.1.50</span> `
+  -EndRange <span class="val">192.168.1.150</span> `
+  -SubnetMask <span class="val">255.255.255.0</span> `
+  -Description <span class="str">"Home Lab DHCP Scope"</span> `
+  -State Active
+
+<span class="cm"># Set gateway and DNS options</span>
+<span class="var">Set-DhcpServerv4OptionValue</span> -ScopeId <span class="val">192.168.1.0</span> `
+  -Router <span class="val">192.168.1.1</span> `
+  -DnsServer <span class="val">192.168.1.200</span> `
+  -DnsDomain <span class="str">"WinServer2022"</span></pre>
+        </div>
+        <div class="result-box">
+          <div class="result-label">✓ DHCP Scope Summary</div>
+          Name: HomeLabScope &nbsp;|&nbsp; Range: 192.168.1.50–150<br/>
+          Gateway: 192.168.1.1 &nbsp;|&nbsp; DNS: 192.168.1.200 &nbsp;|&nbsp; State: Active
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-left"><div class="step-num">03</div><div class="step-line"></div></div>
+      <div class="step-content">
+        <div class="step-title">Create DNS Zones</div>
+        <div class="step-desc">Created a primary forward lookup zone for homelab.local and a reverse lookup zone for the 192.168.1.0/24 network.</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">PowerShell — Admin</span><div class="code-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+          <pre><span class="cm"># Forward lookup zone</span>
+<span class="var">Add-DnsServerPrimaryZone</span> -Name <span class="str">"homelab.local"</span> `
+  -ZoneFile <span class="str">"homelab.local.dns"</span> `
+  -DynamicUpdate NonSecureAndSecure
+
+<span class="cm"># Reverse lookup zone</span>
+<span class="var">Add-DnsServerPrimaryZone</span> -NetworkId <span class="str">"192.168.1.0/24"</span> `
+  -ZoneFile <span class="str">"1.168.192.in-addr.arpa.dns"</span> `
+  -DynamicUpdate NonSecureAndSecure</pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-left"><div class="step-num">04</div><div class="step-line"></div></div>
+      <div class="step-content">
+        <div class="step-title">Add DNS Records & Verify</div>
+        <div class="step-desc">Added an A record for the server with automatic PTR creation, a CNAME alias, and verified full DNS resolution.</div>
+        <div class="code-block">
+          <div class="code-header"><span class="code-lang">PowerShell — Admin</span><div class="code-dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+          <pre><span class="cm"># A record with PTR</span>
+<span class="var">Add-DnsServerResourceRecordA</span> -Name <span class="str">"winserver2022"</span> `
+  -ZoneName <span class="str">"homelab.local"</span> `
+  -IPv4Address <span class="str">"192.168.1.200"</span> `
+  -CreatePtr
+
+<span class="cm"># CNAME alias</span>
+<span class="var">Add-DnsServerResourceRecordCName</span> -Name <span class="str">"dc"</span> `
+  -ZoneName <span class="str">"homelab.local"</span> `
+  -HostNameAlias <span class="str">"winserver2022.homelab.local."</span>
+
+<span class="cm"># Verify resolution</span>
+<span class="var">Resolve-DnsName</span> <span class="str">"winserver2022.homelab.local"</span> -Server <span class="val">192.168.1.200</span></pre>
+        </div>
+        <div class="result-box">
+          <div class="result-label">✓ DNS Resolution Test</div>
+          Name: winserver2022.homelab.local<br/>
+          QueryType: A &nbsp;|&nbsp; TTL: 3600 &nbsp;|&nbsp; IPAddress: 192.168.1.200
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- DNS RECORDS TABLE -->
+<section>
+  <div class="section-eyebrow">DNS Records</div>
+  <h2 class="section-title">Configured DNS Records</h2>
+  <div class="table-wrap">
+    <table class="record-table">
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Name</th>
+          <th>Value</th>
+          <th>Zone</th>
+          <th>TTL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="rtype rtype-a">A</span></td>
+          <td>winserver2022</td>
+          <td>192.168.1.200</td>
+          <td>homelab.local</td>
+          <td>01:00:00</td>
+        </tr>
+        <tr>
+          <td><span class="rtype rtype-c">CNAME</span></td>
+          <td>dc</td>
+          <td>winserver2022.homelab.local</td>
+          <td>homelab.local</td>
+          <td>01:00:00</td>
+        </tr>
+        <tr>
+          <td><span class="rtype rtype-ptr">PTR</span></td>
+          <td>200.1.168.192.in-addr.arpa</td>
+          <td>winserver2022.homelab.local</td>
+          <td>Reverse Zone</td>
+          <td>01:00:00</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ARCHITECTURE -->
+<section>
+  <div class="section-eyebrow">Infrastructure</div>
+  <h2 class="section-title">Lab Architecture</h2>
+  <div class="arch">
+    <div class="arch-node dc">
+      <div class="arch-icon">🖥️</div>
+      <div class="arch-name">WinServer2022</div>
+      <div class="arch-ip">192.168.1.200</div>
+      <div class="arch-tags">
+        <span class="arch-tag b">AD DS</span>
+        <span class="arch-tag b">DC</span>
+      </div>
+    </div>
+    <div class="arch-connector">
+      <div class="arch-line"></div>
+      <span>Internal Network</span>
+    </div>
+    <div class="arch-node dhcp">
+      <div class="arch-icon">📡</div>
+      <div class="arch-name">DHCP Server</div>
+      <div class="arch-ip">Scope: .50 – .150</div>
+      <div class="arch-tags">
+        <span class="arch-tag t">HomeLabScope</span>
+        <span class="arch-tag t">8hr Lease</span>
+      </div>
+    </div>
+    <div class="arch-connector">
+      <div class="arch-line"></div>
+      <span>DNS Resolution</span>
+    </div>
+    <div class="arch-node dns">
+      <div class="arch-icon">🌐</div>
+      <div class="arch-name">DNS Server</div>
+      <div class="arch-ip">homelab.local</div>
+      <div class="arch-tags">
+        <span class="arch-tag g">Forward Zone</span>
+        <span class="arch-tag g">Reverse Zone</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- ISSUES -->
+<section>
+  <div class="section-eyebrow">Troubleshooting</div>
+  <h2 class="section-title">Common Issues & Fixes</h2>
+  <div class="issues-grid">
+    <div class="issue-card">
+      <div class="issue-head"><div class="issue-dot"></div><span class="issue-title">DHCP Client Gets 169.254.x.x</span></div>
+      <div class="issue-body">
+        <div class="issue-label">Cause</div>
+        <div class="issue-text">Device couldn't reach the DHCP server and Windows assigned a self-generated APIPA address instead.</div>
+        <div class="fix-label">✓ Fix</div>
+        <div class="fix-text">Verify DHCP service is running and the scope is active. Check network connectivity between client and server.</div>
+      </div>
+    </div>
+    <div class="issue-card">
+      <div class="issue-head"><div class="issue-dot"></div><span class="issue-title">DNS Not Resolving Internal Names</span></div>
+      <div class="issue-body">
+        <div class="issue-label">Cause</div>
+        <div class="issue-text">Client is using external DNS (router) instead of the internal DNS server at 192.168.1.200.</div>
+        <div class="fix-label">✓ Fix</div>
+        <div class="fix-text">Ensure DHCP scope option 006 (DNS Server) is set to 192.168.1.200 so clients receive correct DNS automatically.</div>
+      </div>
+    </div>
+    <div class="issue-card">
+      <div class="issue-head"><div class="issue-dot"></div><span class="issue-title">DHCP Scope Exhausted</span></div>
+      <div class="issue-body">
+        <div class="issue-label">Cause</div>
+        <div class="issue-text">All 101 IP addresses in the pool (50–150) have been assigned and no more are available.</div>
+        <div class="fix-label">✓ Fix</div>
+        <div class="fix-text">Expand the scope range or shorten the lease duration so IPs are recycled faster. Monitor with Get-DhcpServerv4Lease.</div>
+      </div>
+    </div>
+    <div class="issue-card">
+      <div class="issue-head"><div class="issue-dot"></div><span class="issue-title">Rogue DHCP Server Conflict</span></div>
+      <div class="issue-body">
+        <div class="issue-label">Cause</div>
+        <div class="issue-text">Another unauthorized DHCP server is responding to client requests with incorrect network settings.</div>
+        <div class="fix-label">✓ Fix</div>
+        <div class="fix-text">AD authorization blocks unauthorized DHCP servers automatically — this is why we ran Add-DhcpServerInDC.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- SKILLS -->
+<section>
+  <div class="section-eyebrow">Takeaways</div>
+  <h2 class="section-title">Skills Demonstrated</h2>
+  <div class="skills-wrap">
+    <div class="skill-pill"><span>🖥️</span> Windows Server 2022 Administration</div>
+    <div class="skill-pill"><span>💻</span> PowerShell Scripting</div>
+    <div class="skill-pill"><span>📡</span> DHCP Server Configuration</div>
+    <div class="skill-pill"><span>🌐</span> DNS Server Configuration</div>
+    <div class="skill-pill"><span>🔗</span> Active Directory Integration</div>
+    <div class="skill-pill"><span>🗺️</span> DNS Record Management</div>
+    <div class="skill-pill"><span>📋</span> Server Role Management</div>
+    <div class="skill-pill"><span>🔍</span> Network Troubleshooting</div>
+    <div class="skill-pill"><span>📝</span> IT Documentation</div>
+    <div class="skill-pill"><span>🏗️</span> Network Infrastructure Design</div>
+  </div>
+</section>
+
+<hr class="divider"/>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">
+    Home Lab — Part 01 &nbsp;|&nbsp; <strong>DNS & DHCP Setup</strong> &nbsp;|&nbsp; Built by Neil Marvin Simon
+  </div>
+  <div class="footer-links">
+    <a href="#">Part 02 — Windows 10 Client & AD →</a>
+    <a href="#">Part 03 — GPO (Coming Soon) →</a>
+  </div>
+</footer>
+
+</body>
+</html>
